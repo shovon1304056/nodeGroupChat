@@ -11,7 +11,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 const dynamicFormatMessage = require('./utils/messages');
-const { userJoinChat , getCurrentUser } = require('./utils/users');
+const { userJoinChat , getCurrentUser, getRoomUsers, userLeave } = require('./utils/users');
 
 // set static folder for frontend view
 
@@ -38,7 +38,14 @@ io.on('connection', socket => {
     socket.broadcast.to(user.room).
         emit('message', dynamicFormatMessage(botName ,`${user.username} joined`));
 
+        // send users and room details
+    io.to(user.room).emit('roomUsers',{
+        room: user.room,
+        users : getRoomUsers(user.room)
     });
+    });
+
+    
 
     // receive the chat message
     socket.on('chatMessage', msg => {
@@ -50,7 +57,23 @@ io.on('connection', socket => {
 
     // show message when clients disconnect
     socket.on('disconnect', () => {
-        io.emit('message', dynamicFormatMessage(botName ,'A user has left'));
+
+        const user = userLeave(socket.id);
+
+        if(user){
+            console.log(user);
+            io.to(user.room)
+                .emit('message', dynamicFormatMessage(botName ,`${user.username} has left`));
+
+    // send users and rood details
+    io.to(user.room).emit('roomUsers',{
+        room: user.room,
+        users : getRoomUsers(user.room)
+    });
+        }
+
+    
+        
     });
 
 });
