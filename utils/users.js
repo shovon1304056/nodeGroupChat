@@ -15,11 +15,10 @@ function userJoinChat(id,username,room){
 }
 
 
-// get the current user
-
-function getCurrentUser(id){
+// Get current user
+function getCurrentUser(id) {
     return users.find(user => user.id === id);
-}
+  }
 
 // user leaves chat
 

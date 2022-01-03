@@ -13,69 +13,60 @@ const io = socketio(server);
 const dynamicFormatMessage = require('./utils/messages');
 const { userJoinChat , getCurrentUser, getRoomUsers, userLeave } = require('./utils/users');
 
-// set static folder for frontend view
-
+// Set static folder
 app.use(express.static(path.join(__dirname, 'public')));
-//bot name
 
-const botName = 'Node Bot'
+const botName = 'Chat Bot';
 
-// Run when a user connects
+// Run when client connects
 io.on('connection', socket => {
+  socket.on('joinRoom', ({ username, room }) => {
+    const user = userJoinChat(socket.id, username, room);
 
-    // join on chat room
-    socket.on('joinRoom', ({ username, room }) => {
-
-    const user = userJoinChat(socket.id,username,room);
     socket.join(user.room);
 
-    // when a user joins, only single message
-    socket.emit('message' , dynamicFormatMessage(botName ,'Welcome to the chat app')); 
+    // Welcome current user
+    socket.emit('message', dynamicFormatMessage(botName, 'Welcome to ChatCord!'));
 
-    // Broadcast when any other user joins,  
-    // all user except the new joinee will see the message
+    // Broadcast when a user connects
+    socket.broadcast
+      .to(user.room)
+      .emit(
+        'message',
+        dynamicFormatMessage(botName, `${user.username} has joined the chat`)
+      );
 
-    socket.broadcast.to(user.room).
-        emit('message', dynamicFormatMessage(botName ,`${user.username} joined`));
+    // Send users and room info
+    io.to(user.room).emit('roomUsers', {
+      room: user.room,
+      users: getRoomUsers(user.room)
+    });
+  });
 
-        // send users and room details
-    io.to(user.room).emit('roomUsers',{
+  // Listen for chatMessage
+  socket.on('chatMessage', msg => {
+    const user = getCurrentUser(socket.id);
+
+    io.to(user.room).emit('message', dynamicFormatMessage(user.username, msg));
+  });
+
+  // Runs when client disconnects
+  socket.on('disconnect', () => {
+    const user = userLeave(socket.id);
+    console.log(user);
+    if (user) {
+      io.to(user.room).emit(
+        'message',
+        dynamicFormatMessage(botName, `${user.username} has left the chat`)
+      );
+
+      // Send users and room info
+      io.to(user.room).emit('roomUsers', {
         room: user.room,
-        users : getRoomUsers(user.room)
-    });
-    });
-
-    
-
-    // receive the chat message
-    socket.on('chatMessage', msg => {
-
-        const getUser = getCurrentUser(socket.id);
-        console.log(msg);
-        io.to(getUser.room).emit('message', dynamicFormatMessage(getUser.username ,msg));
-    });
-
-    // show message when clients disconnect
-    socket.on('disconnect', () => {
-
-        const user = userLeave(socket.id);
-
-        if(user){
-            console.log(user);
-            io.to(user.room)
-                .emit('message', dynamicFormatMessage(botName ,`${user.username} has left`));
-
-    // send users and rood details
-    io.to(user.room).emit('roomUsers',{
-        room: user.room,
-        users : getRoomUsers(user.room)
-    });
-        }
-
-    
-        
-    });
-
+        users: getRoomUsers(user.room)
+      });
+    }
+  });
 });
 
 const PORT = 5000 || process.env.PORT;
